@@ -1,155 +1,173 @@
-# Support-Ticket Classifier
+# Saga Studio Interactive Chat Assistant
 
-Microservice Node.js (ES Modules) untuk mengklasifikasikan tiket dukungan melalui Claude 3.5 Sonnet di Amazon Bedrock. Implementasi menggunakan HTTP native Node.js dan AWS SDK v3.
+An Express microservice that serves a static landing page and chat widget, answers visitor questions using Claude 3.5 Sonnet on Amazon Bedrock, and validates lead submissions.
 
-## Problem Statement
+## Problem
 
-Tiket dukungan perlu diringkas dan dikelompokkan secara konsisten berdasarkan kategori dan prioritas agar dapat diteruskan ke tim yang tepat. Service ini menyediakan endpoint stateless untuk klasifikasi serta menolak tiket dengan pola PII umum apabila persetujuan eksplisit tidak diberikan.
+Prospective clients need a simple way to learn about Saga Studio's creative services and share project requirements. This service combines studio knowledge with conversational AI and exposes a consent-validated lead endpoint. It deliberately does not log conversation content.
 
-## Struktur proyek
+## Project layout
 
 ```text
-support-ticket-classifier/
-├── .env.example
-├── .gitignore
-├── AI_DEV_LOG.md
-├── package.json
-├── README.md
+├── public/
+│   ├── index.html
+│   ├── chat.js
+│   └── styles.css
+├── helpers.js
 ├── src/
 │   ├── app.js
 │   ├── server.js
-│   ├── config/
-│   │   └── env.js
+│   ├── config/env.js
 │   ├── controllers/
-│   │   └── tickets.js
-│   ├── services/
-│   │   └── ticket-classifier.js
-│   └── utils/
-│       └── pii.js
+│   │   ├── chat.js
+│   │   └── leads.js
+│   ├── knowledge/saga-studio.js
+│   ├── middleware/error-handler.js
+│   ├── routes/
+│   │   ├── chat.js
+│   │   └── leads.js
+│   ├── schemas/
+│   │   ├── chat.js
+│   │   └── leads.js
+│   └── services/
+│       ├── bedrock-client.js
+│       ├── chat-assistant.js
+│       └── lead-service.js
 └── test/
-    └── tickets.test.js
+    ├── chat.test.js
+    └── leads.test.js
 ```
 
-## Setup dan instalasi
+## Setup
 
-Persyaratan: Node.js 18.18+ dan npm.
+Requirements: Node.js 20+, npm, an AWS account with access to Amazon Bedrock, and Claude 3.5 Sonnet enabled in the selected region.
 
-1. Install dependency: `npm install`.
-2. Salin `.env.example` menjadi `.env`.
-3. Isi `AWS_REGION` dan `BEDROCK_MODEL_ID`. Untuk penggunaan lokal, atur kredensial AWS melalui environment atau AWS profile. Di deployment, utamakan IAM role/task role; jangan masukkan kredensial ke image atau source.
-4. Pastikan akun AWS memiliki akses Bedrock dan model Claude 3.5 Sonnet tersedia/diaktifkan pada region tersebut.
-5. Jalankan `npm test` untuk tes tanpa akses atau biaya AWS.
-6. Jalankan `npm start`, lalu service mendengarkan pada port yang dikonfigurasi.
+1. Install dependencies: `npm install`.
+2. Copy `.env.example` to `.env`.
+3. Set `AWS_REGION` and `BEDROCK_MODEL_ID`. Use AWS profiles or IAM roles for credentials; do not commit keys.
+4. Run automated tests (no AWS call): `npm test`.
+5. Start the service: `npm start`.
+6. Open `http://localhost:3000/` for the static page.
 
-## Environment variables
+## Environment
 
-| Variabel | Wajib | Default | Keterangan |
-|---|---:|---|---|
-| `PORT` | Tidak | `3000` | Port HTTP; harus integer positif. |
-| `AWS_REGION` | Ya untuk Bedrock | — | AWS region, misalnya `us-east-1`. Health check degraded bila kosong. |
-| `BEDROCK_MODEL_ID` | Ya untuk Bedrock | `anthropic.claude-3-5-sonnet-20241022-v2:0` | ID/inference profile model yang diizinkan pada akun dan region. |
-| `AWS_ACCESS_KEY_ID` | Tidak | AWS credential chain | Kredensial lokal opsional; gunakan role di deployment. |
-| `AWS_SECRET_ACCESS_KEY` | Tidak | AWS credential chain | Rahasia; jangan commit atau log. |
-| `AWS_SESSION_TOKEN` | Tidak | — | Token sementara, bila memakai kredensial STS. |
-| `BEDROCK_TIMEOUT_MS` | Tidak | `30000` | Timeout request model dalam milidetik. |
-| `MAX_REQUEST_BYTES` | Tidak | `16384` | Batas ukuran body HTTP. |
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `3000` | HTTP listening port. |
+| `AWS_REGION` | empty | AWS region for Bedrock. |
+| `BEDROCK_MODEL_ID` | Claude 3.5 Sonnet v2 model ID | Bedrock model ID or supported inference profile. |
+| `BEDROCK_TIMEOUT_MS` | `30000` | Request timeout in milliseconds. |
+| `MAX_REQUEST_BYTES` | `16384` | Maximum JSON request size. |
 
-AWS SDK menggunakan credential provider chain standar. Field access key pada `.env.example` sengaja kosong dan tidak divalidasi saat proses mulai.
+The AWS SDK uses its standard credential provider chain. Optional credential variable names are shown blank in `.env.example`; prefer IAM roles outside local development.
 
 ## API
 
-Semua respons JSON menggunakan `Cache-Control: no-store`.
+JSON endpoints return `Cache-Control: no-store`. Validation errors return HTTP 400 in the form `{ "error": "Validation failed", "details": [{ "path": "...", "message": "..." }] }`. Unexpected provider and server errors return a generic HTTP 500 response without stack traces.
 
-### `POST /api/v1/tickets/classify`
+### `GET /health`
 
-Header: `Content-Type: application/json`
+Returns HTTP 200:
 
-Request:
+```json
+{ "status": "ok" }
+```
+
+This is a process-level check and does not probe Bedrock connectivity or IAM permissions.
+
+### `POST /api/v1/chat`
+
+Request body is an array of 1–12 message objects. Each role must be `user` or `assistant`, roles alternate sequentially, the first and last roles are `user`, and content contains 1–1000 characters.
+
+```json
+[
+  { "role": "user", "content": "What services does Saga Studio offer?" }
+]
+```
+
+Successful response:
 
 ```json
 {
-  "ticketDescription": "Tagihan bulan ini tampak lebih tinggi dari biasanya.",
-  "consentGiven": false
+  "reply": "Saga Studio offers video production, branding, UI/UX design, web development, and social media management.",
+  "lead": null,
+  "missingFields": ["name", "email", "need", "context", "consent"],
+  "leadReady": false
 }
 ```
 
-`ticketDescription` wajib berupa string dengan minimal 10 karakter setelah trim. `consentGiven` opsional, tetapi jika diberikan harus boolean. Jika pendeteksi menemukan PII umum seperti email, nomor telepon, SSN, atau pola nomor kartu, request harus memuat `"consentGiven": true`. Detektor berbasis pola ini bersifat best-effort dan bukan pengganti kontrol privasi/DLP. Jangan mengirim data yang tidak diperlukan; persetujuan harus didapatkan dari pengguna sebelum mengirim PII ke pihak pemroses AI.
+When lead information has been volunteered in the conversation, `lead` contains the known fields (`name`, `email`, `whatsapp`, `need`, `context`, `consent`); unavailable values are `null`. `missingFields` reports required lead fields not yet present or explicitly consented. WhatsApp is optional. `leadReady` is true only when name, email, need, context, and explicit consent are present. The model must not infer or invent consent.
 
-Sukses (`200`):
+The chat passes visitor messages to the configured Bedrock model for processing. The application does not write chat contents to its own console or log files. Avoid sharing unnecessary sensitive information; apply TLS and appropriate privacy controls at deployment.
+
+### `POST /api/v1/leads`
+
+Required JSON fields: `name` (1–120 chars), `email` (valid email), `need` (exactly one allowed option), `context` (1–2000 chars), and `consent` (must be `true`). `whatsapp` is optional and, when supplied, must contain 7–20 characters.
+
+Allowed `need` values:
+
+- `Video Production`
+- `Branding`
+- `UI/UX Design`
+- `Web Development`
+- `Social Media Management`
+- `Other`
+
+Example:
 
 ```json
 {
-  "status": "success",
-  "data": {
-    "category": "Billing",
-    "priority": "Medium",
-    "summary": "Pelanggan menanyakan kenaikan tagihan bulan ini."
-  }
+  "name": "Taylor",
+  "email": "taylor@example.com",
+  "whatsapp": "+628123456789",
+  "need": "Branding",
+  "context": "We are launching a new product and need a brand identity.",
+  "consent": true
 }
 ```
 
-Nilai `category`: `Billing`, `Technical`, `Account`, atau `General`. Nilai `priority`: `High`, `Medium`, atau `Low`. Service hanya menerima hasil model berbentuk JSON valid dengan kategori/prioritas tersebut; hasil model tidak valid diperlakukan sebagai kegagalan upstream.
-
-Error umum: `400` validasi/JSON, `413` body terlalu besar, `415` content type tidak sesuai, `500` kegagalan internal termasuk exception AWS (tanpa stack trace), atau `502` respons model yang tidak valid/tidak dapat diproses.
-
-### `GET /api/v1/tickets/health`
-
-Respons `200` jika region dan model ID telah tersedia; `503` jika konfigurasi Bedrock belum lengkap.
+Success returns HTTP 201 with a generated identifier:
 
 ```json
-{
-  "status": "healthy",
-  "service": "support-ticket-classifier",
-  "bedrock": {
-    "regionConfigured": true,
-    "modelConfigured": true
-  }
-}
+{ "id": "generated-string-id" }
 ```
 
-Health check ini memeriksa konfigurasi lokal, bukan melakukan panggilan jaringan atau memvalidasi izin/availability Bedrock.
+The current lead service generates a UUID but does not persist lead data. Add an approved storage backend and retention policy before relying on this endpoint for production lead capture.
 
-## Arsitektur
+## Architecture
 
 ```mermaid
 flowchart LR
-    Client --> NativeHTTP[Node.js HTTP server]
-    NativeHTTP --> Controller[Ticket controller & validation]
-    Controller --> PIIGuard[PII pattern guard + consent]
-    PIIGuard --> Classifier[Classifier service]
-    Classifier --> Bedrock[AWS SDK v3 InvokeModel]
-    Bedrock --> Claude[Claude 3.5 Sonnet]
-    Claude --> Classifier
-    Classifier --> Controller
-    Controller --> Client
+    Visitor --> Static[Express public/ assets]
+    Visitor --> ChatAPI[POST /api/v1/chat]
+    ChatAPI --> ZodChat[Chat Zod schema]
+    ZodChat --> Assistant[Chat assistant]
+    Knowledge[src/knowledge/saga-studio.js] --> Assistant
+    Assistant --> BedrockWrapper[Bedrock client wrapper]
+    BedrockWrapper --> Claude[Claude 3.5 Sonnet]
+    Visitor --> LeadAPI[POST /api/v1/leads]
+    LeadAPI --> ZodLead[Lead Zod schema + consent]
+    ZodLead --> LeadService[UUID response; no persistence]
+    ChatAPI --> Errors[Global sanitized error handler]
+    LeadAPI --> Errors
 ```
 
-Deskripsi tiket tidak dicetak ke console atau log aplikasi. Error AWS/internal juga tidak dikirimkan mentah ke klien.
+## Limitations
 
-## Limitasi operasional
+- Model responses are constrained and validated as JSON, but generated answers may still be inaccurate; verify important business details.
+- Claude 3.5 Sonnet request/response limits, latency, availability, and cost are governed by Bedrock, account quotas, and the selected region/model ID. This service applies a 30-second default timeout and a 900-token output budget.
+- The health route does not verify AWS credentials, model access, network connectivity, or quota.
+- Chat is stateless: the client must send the relevant alternating message history on each request; the API caps it at 12 messages.
+- Leads are not persisted, and chat content is not logged. Configure consent, data retention, access control, TLS, abuse prevention, and a durable lead store appropriate to your deployment.
 
-- PII detection menggunakan regex untuk pola umum dan dapat memiliki false positive/false negative. Terapkan DLP yang sesuai kebijakan sebelum produksi.
-- Claude adalah model generatif; kategori, prioritas, dan ringkasan tetap perlu dievaluasi terhadap data dan kebijakan bisnis Anda.
-- `max_tokens` respons model ditetapkan 300; timeout default 30 detik. Timeout dapat diatur melalui `BEDROCK_TIMEOUT_MS`.
-- Batas request default 16 KiB. Tidak ada retry aplikasi; SDK mengatur maksimal dua percobaan untuk error yang dapat di-retry.
-- Health check tidak memverifikasi kredensial, izin IAM, kuota, ketersediaan model, atau konektivitas Bedrock.
-- Terapkan autentikasi, rate limiting, TLS, metrik, dan kebijakan retensi sesuai kebutuhan deployment; endpoint contoh ini belum menyediakan autentikasi.
+## Run evidence
 
-## Bukti run (terminal / screenshot)
+In separate terminals:
 
-1. Jalankan `npm test` dan siapkan terminal yang menampilkan seluruh tes lulus.
-2. Pada terminal kedua jalankan `npm start`; simpan tampilan log startup yang hanya memuat port.
-3. Pada terminal ketiga, verifikasi health:
+```powershell
+npm test
+npm start
+Invoke-RestMethod http://localhost:3000/health
+```
 
-   ```powershell
-   Invoke-RestMethod http://localhost:3000/api/v1/tickets/health
-   ```
-
-4. Uji validasi privasi tanpa memanggil Bedrock:
-
-   ```powershell
-   $body = @{ ticketDescription = "Hubungi saya di user@example.com untuk bantuan" } | ConvertTo-Json
-   Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/v1/tickets/classify -ContentType "application/json" -Body $body
-   ```
-
-   Permintaan ini seharusnya ditolak dengan HTTP 400 karena tidak ada consent. Untuk merekam klasifikasi sukses, pastikan AWS credentials, model access, region, dan model ID telah dikonfigurasi; gunakan deskripsi tanpa PII atau sertakan consent yang sah.
+Open `http://localhost:3000/` and submit a question in the chat widget. The UI also includes a consent-required lead form. Real chat requests require valid Bedrock credentials and model access; automated tests use a fake client and incur no AWS charges.

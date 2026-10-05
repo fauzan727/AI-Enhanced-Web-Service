@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f6f5f1">
+    <meta name="description" content="Talk with Saga Studio about creative projects, digital experiences, and brand stories.">
+    <title>Saga Studio — Creative, made clear</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script type="module" src="/chat.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Saga Studio home"><span class="brand-mark">S</span> saga<span>studio</span></a>
+      <a class="header-link" href="#contact">Start a project <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="eyebrow-dot"></span> Independent creative studio</p>
+          <h1>Good ideas<br>deserve <em>good stories.</em></h1>
+          <p class="hero-text">We turn ambitious ideas into thoughtful brands, meaningful digital experiences, and content people remember.</p>
+          <a class="primary-link" href="#chat">Tell us what you're dreaming up <span aria-hidden="true">↓</span></a>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="art-orbit orbit-one"></div>
+          <div class="art-orbit orbit-two"></div>
+          <div class="art-sun"></div>
+          <div class="art-card"><span>MAKE<br>IT<br>MATTER<span class="art-star">✳</span></span></div>
+          <span class="art-caption">Ideas into impact / Est. for the curious</span>
+        </div>
+      </section>
+
+      <section class="services" aria-labelledby="services-title">
+        <div><p class="eyebrow">What we do</p><h2 id="services-title">A little bit of<br><em>creative magic.</em></h2></div>
+        <ul class="service-list">
+          <li><span>01</span> Video production</li>
+          <li><span>02</span> Brand identity</li>
+          <li><span>03</span> UI / UX design</li>
+          <li><span>04</span> Web development</li>
+          <li><span>05</span> Social media</li>
+        </ul>
+      </section>
+
+      <section class="conversation-section" id="chat">
+        <div class="section-intro">
+          <p class="eyebrow"><span class="eyebrow-dot"></span> Your first conversation starts here</p>
+          <h2>Big idea?<br><em>Let's talk.</em></h2>
+          <p>Ask about our services or tell us a little about your project. Our studio assistant is here to help you find a way forward.</p>
+          <div class="privacy-note"><span aria-hidden="true">◌</span> Your conversation isn't written to our application logs.</div>
+        </div>
+
+        <section class="chat-card" aria-label="Chat with Saga Studio">
+          <div class="chat-header">
+            <div class="assistant-avatar">S<span></span></div>
+            <div><strong>Saga Studio Assistant</strong><small><span class="online-dot"></span> Here to help</small></div>
+            <span class="chat-spark" aria-hidden="true">✳</span>
+          </div>
+          <div class="chat-messages" id="messages" aria-live="polite">
+            <div class="message assistant-message">Hi there! Tell me what you're working on, or ask me about what Saga Studio can create with you.</div>
+          </div>
+          <form id="chat-form" class="chat-form">
+            <label class="visually-hidden" for="chat-input">Your message</label>
+            <input id="chat-input" name="message" maxlength="1000" placeholder="Write your message..." autocomplete="off" required>
+            <button type="submit" aria-label="Send message">↑</button>
+          </form>
+          <p class="chat-footnote">Thoughtful projects begin with a conversation.</p>
+        </section>
+      </section>
+
+      <section class="contact-section" id="contact">
+        <div>
+          <p class="eyebrow">Ready when you are</p>
+          <h2>Let's make<br><em>something matter.</em></h2>
+        </div>
+        <form id="lead-form" class="lead-form">
+          <label>Name<input name="name" maxlength="120" required></label>
+          <label>Email<input name="email" type="email" maxlength="254" required></label>
+          <label>WhatsApp <span>(optional)</span><input name="whatsapp" maxlength="20"></label>
+          <label>What do you need?
+            <select name="need" required>
+              <option value="">Choose a service</option>
+              <option>Video Production</option>
+              <option>Branding</option>
+              <option>UI/UX Design</option>
+              <option>Web Development</option>
+              <option>Social Media Management</option>
+              <option>Other</option>
+            </select>
+          </label>
+          <label class="full-width">Tell us about your project<textarea name="context" rows="3" maxlength="2000" required></textarea></label>
+          <label class="consent full-width"><input type="checkbox" name="consent" required> I agree to share these details so Saga Studio can follow up about my project.</label>
+          <button class="submit-button" type="submit">Send project details <span aria-hidden="true">↗</span></button>
+          <p class="form-status full-width" id="lead-status" role="status"></p>
+        </form>
+      </section>
+    </main>
+
+    <footer><a class="brand" href="/"><span class="brand-mark">S</span> saga<span>studio</span></a><span>Make it matter. © Saga Studio</span></footer>
+  </body>
+</html>
